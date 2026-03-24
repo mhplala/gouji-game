@@ -1,0 +1,12 @@
+services:
+  - type: web
+    runtime: node
+    name: gouji-game
+    repo: https://github.com/mhplala/gouji-game.git
+    branch: main
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+    plan: free
