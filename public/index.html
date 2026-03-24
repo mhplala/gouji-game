@@ -1579,6 +1579,16 @@ function getPipCount(rank) {
 
 // ============ ACTIONS ============
 function playCards() {
+  console.log('playCards called, selectedCards:', [...selectedCards], 'hand ids:', gameState?.hand?.map(c=>c.id));
+  // Also check for visually selected cards as fallback
+  if (selectedCards.size === 0) {
+    // Try to recover from DOM
+    const selEls = document.querySelectorAll('.hand-card.selected');
+    selEls.forEach(el => {
+      if (el.dataset.cardId) selectedCards.add(el.dataset.cardId);
+    });
+    console.log('Recovered from DOM:', [...selectedCards]);
+  }
   if (selectedCards.size === 0) { showToast('请先选择卡牌'); return; }
   send({ type: 'play', cardIds: [...selectedCards] });
   // Don't clear selection here - let renderHand() clean up when
