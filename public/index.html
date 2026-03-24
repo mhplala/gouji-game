@@ -1191,11 +1191,15 @@ function renderHand() {
         `;
       }
 
+      // Track position within same-rank cluster (0 = leftmost/bottom)
+      let clusterIdx = 0;
+      for (let j = i - 1; j >= 0 && cards[j].rank === card.rank; j--) clusterIdx++;
       el.dataset.rank = card.rank;
       el.dataset.cardId = card.id;
-      el.onmouseenter = () => highlightRankGroup(card.rank, container);
-      el.onmouseleave = () => clearRankGroupHighlight(container);
-      el.onclick = () => toggleRankGroup(card.rank);
+      el.dataset.clusterIdx = clusterIdx;
+      el.onmouseenter = () => highlightFromCard(card.rank, clusterIdx);
+      el.onmouseleave = () => clearRankGroupHighlight();
+      el.onclick = () => toggleFromCard(card.rank, clusterIdx);
       container.appendChild(el);
     }
 
@@ -1215,12 +1219,14 @@ function toggleCard(id) {
   autoExpandRulePanel();
 }
 
-// Toggle all cards of the same rank across both rows
-function toggleRankGroup(rank) {
+// Toggle cards from index 0 up to clusterIdx (inclusive) within a rank cluster
+// Hover leftmost (idx=0) → just that card; hover idx=2 → cards 0,1,2
+function toggleFromCard(rank, clusterIdx) {
   const hand = gameState.hand || [];
   const sameRank = hand.filter(c => c.rank === rank);
-  const allSelected = sameRank.every(c => selectedCards.has(c.id));
-  for (const c of sameRank) {
+  const target = sameRank.slice(0, clusterIdx + 1);
+  const allSelected = target.every(c => selectedCards.has(c.id));
+  for (const c of target) {
     if (allSelected) selectedCards.delete(c.id);
     else selectedCards.add(c.id);
   }
@@ -1229,13 +1235,15 @@ function toggleRankGroup(rank) {
   autoExpandRulePanel();
 }
 
-// Hover highlight: lift all same-rank cards in both rows
-function highlightRankGroup(rank, _container) {
+// Hover highlight: lift this card and all same-rank cards below (left of) it
+function highlightFromCard(rank, clusterIdx) {
   document.querySelectorAll('#handRow1 .hand-card, #handRow2 .hand-card').forEach(el => {
-    if (el.dataset.rank === rank) el.classList.add('hover-group');
+    if (el.dataset.rank === rank && parseInt(el.dataset.clusterIdx) <= clusterIdx) {
+      el.classList.add('hover-group');
+    }
   });
 }
-function clearRankGroupHighlight(_container) {
+function clearRankGroupHighlight() {
   document.querySelectorAll('.hand-card.hover-group').forEach(el => {
     el.classList.remove('hover-group');
   });
