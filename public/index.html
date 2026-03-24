@@ -341,7 +341,7 @@ body {
   height: var(--card-h);
   justify-content: center;
 }
-#handRow1 { margin-bottom: 2px; }
+#handRow1 { }
 #handRow2 { }
 .hand-card {
   width: var(--card-w);
@@ -413,34 +413,18 @@ body {
   font-size: 9px; 
   line-height: 10px; 
 }
-/* Card center pips */
+/* Card center pips — hidden for clean look */
 .hand-card .card-pips {
-  position: absolute;
-  top: 18px; left: 3px; right: 3px; bottom: 18px;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: repeat(5, 1fr);
-  align-items: center;
-  justify-items: center;
-  font-size: 10px;
-  pointer-events: none;
-  opacity: 0.65;
-  overflow: hidden;
+  display: none;
 }
 .hand-card .card-pips.face-pip {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: 'Trebuchet MS', 'Helvetica Neue', Arial, sans-serif;
-  font-size: 22px;
-  font-weight: 700;
-  opacity: 0.3;
+  display: none;
 }
 .hand-card .card-pips .pip {
-  line-height: 1;
+  display: none;
 }
 .hand-card .card-pips .pip.mid {
-  grid-column: 1 / 3;
+  display: none;
 }
 /* Gouji highlight */
 .hand-card.gouji-highlight {
@@ -448,12 +432,7 @@ body {
   border-color: rgba(255,80,80,0.4);
 }
 .hand-card.gouji-highlight::before {
-  content: '🔥';
-  position: absolute;
-  top: -8px;
-  right: -4px;
-  font-size: 10px;
-  z-index: 5;
+  display: none;
 }
 /* Inner border */
 .hand-card::after {
@@ -733,7 +712,8 @@ body {
   }
   #handArea::-webkit-scrollbar { display: none; }
   #handRow1, #handRow2 { justify-content: flex-start; min-width: min-content; height: var(--card-h); }
-  #handRow1 { margin-bottom: 2px; }
+  #handRow1 { }
+  #handRow2 { }
 
   .hand-card {
     border-radius: 4px;
@@ -745,7 +725,7 @@ body {
   .hand-card.selected { transform: translateY(-14px); }
   .hand-card .card-corner .cr { font-size: 9px; line-height: 10px; }
   .hand-card .card-corner .cs { font-size: 7px; line-height: 8px; }
-  .hand-card .card-pips { font-size: 14px; }
+  .hand-card .card-pips { display: none; }
   .hand-card .joker-text { font-size: 10px; margin-top: 4px; }
 
   #controls {
@@ -917,7 +897,7 @@ body {
       <div id="gameRulesContent" style="font-size:13px;line-height:1.8;color:#ccc;"></div>
     </div>
   </div>
-  <div id="goujiIndicator">🔥 够级！</div>
+  <div id="goujiIndicator">够级！</div>
 
   <!-- Player slots -->
   <div class="player-slot seat-0"><div class="player-info" id="pinfo-0"></div></div>
@@ -942,15 +922,15 @@ body {
     <div id="ruleContent">选择卡牌查看出牌提示</div>
   </div>
 
-  <!-- Hand -->
+  <!-- Hand: row2 (3-9) renders first = behind, row1 (10+) renders second = in front -->
   <div id="handArea">
-    <div style="display:flex;align-items:center;">
-      <span class="row-label" id="rowLabel1">10+</span>
-      <div id="handRow1"></div>
-    </div>
-    <div style="display:flex;align-items:center;">
+    <div class="hand-row-wrap" id="handRow2Wrap" style="display:flex;align-items:center;position:relative;">
       <span class="row-label" id="rowLabel2">3-9</span>
       <div id="handRow2"></div>
+    </div>
+    <div class="hand-row-wrap" style="display:flex;align-items:center;position:relative;margin-top:calc(var(--card-h) * -0.6);">
+      <span class="row-label" id="rowLabel1">10+</span>
+      <div id="handRow1"></div>
     </div>
   </div>
 
@@ -1159,10 +1139,11 @@ function renderHand() {
     const cardW = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--card-w')) || 68;
     const isMobileView = window.innerWidth <= 480;
     
-    // Tighter overlap within same rank, gap between different ranks
+    // Tighter overlap within same rank, golden ratio gap between clusters
     const sameRankOverlap = cardW * 0.7;  // tight: only ~30% visible
-    const diffRankOverlap = cardW * 0.45; // looser: ~55% visible, creates visual gap
-    const clusterGap = isMobileView ? 4 : 6; // extra px gap between clusters
+    const sameRankVisible = cardW - sameRankOverlap; // ~30% of card width
+    const diffRankOverlap = cardW - sameRankVisible * 1.618; // cluster gap = 1.618x intra-cluster spacing
+    const clusterGap = 0; // gap folded into diffRankOverlap via golden ratio
 
     for (let i = 0; i < cards.length; i++) {
       const card = cards[i];
@@ -1306,7 +1287,7 @@ function renderGouji() {
   if (gameState.isGoujiActive) {
     el.style.display = 'block';
     const who = gameState.players[gameState.goujiSeat]?.name || '?';
-    el.textContent = `🔥 够级！(${who})`;
+    el.textContent = `够级！(${who})`;
   } else {
     el.style.display = 'none';
   }
@@ -1706,7 +1687,7 @@ function toggleGameRules() {
       let html = '';
       html += `<div>🃏 ${RULE_DESCRIPTIONS.bombCompare[r.bombCompare] || r.bombCompare}</div>`;
       html += `<div>💣 ${RULE_DESCRIPTIONS.bombBeatsAll[String(r.bombBeatsAll)] || ''}</div>`;
-      html += `<div>🔥 ${RULE_DESCRIPTIONS.nonDuiTouCanPlay[String(r.nonDuiTouCanPlay)] || ''}</div>`;
+      html += `<div>${RULE_DESCRIPTIONS.nonDuiTouCanPlay[String(r.nonDuiTouCanPlay)] || ''}</div>`;
       html += `<div>🎁 ${RULE_DESCRIPTIONS.jinGong[String(r.jinGong)] || ''}</div>`;
       html += `<div style="border-top:1px solid rgba(255,255,255,0.1);margin:6px 0;"></div>`;
       html += `<div>🏳️ ${RULE_DESCRIPTIONS.geming[String(r.geming)] || ''}</div>`;
