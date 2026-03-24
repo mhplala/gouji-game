@@ -1158,15 +1158,11 @@ function renderHand() {
     const cardCount = cards.length;
     const cardW = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--card-w')) || 68;
     const isMobileView = window.innerWidth <= 480;
-    const minVisible = isMobileView ? 20 : 24;
-    const maxDeckWidth = isMobileView ? window.innerWidth * 0.92 : Math.min(window.innerWidth * 0.65, 750);
-    let overlap = 0;
-    if (cardCount > 1) {
-      const overlapFromMax = cardW - (maxDeckWidth - cardW) / (cardCount - 1);
-      overlap = Math.max(overlapFromMax, cardW - minVisible * 1.5);
-      overlap = Math.min(overlap, cardW - minVisible);
-      overlap = Math.max(overlap, 0);
-    }
+    
+    // Tighter overlap within same rank, gap between different ranks
+    const sameRankOverlap = cardW * 0.7;  // tight: only ~30% visible
+    const diffRankOverlap = cardW * 0.45; // looser: ~55% visible, creates visual gap
+    const clusterGap = isMobileView ? 4 : 6; // extra px gap between clusters
 
     for (let i = 0; i < cards.length; i++) {
       const card = cards[i];
@@ -1174,13 +1170,17 @@ function renderHand() {
       el.className = 'hand-card';
       if (selectedCards.has(card.id)) el.classList.add('selected');
 
-      // Gouji highlight: if this rank has enough cards to form gouji
+      // Gouji highlight
       if (isGoujiCard(card.rank, rankCounts[card.rank])) {
         el.classList.add('gouji-highlight');
       }
 
       if (i > 0) {
-        el.style.marginLeft = `-${Math.round(overlap)}px`;
+        const prevRank = cards[i - 1].rank;
+        const sameRank = card.rank === prevRank;
+        const overlap = sameRank ? sameRankOverlap : diffRankOverlap;
+        const gap = sameRank ? 0 : clusterGap;
+        el.style.marginLeft = `${-Math.round(overlap) + gap}px`;
       }
 
       const isRed = card.suit === '♥' || card.suit === '♦';
