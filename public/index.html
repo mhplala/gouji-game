@@ -362,14 +362,16 @@ body {
 .hand-card:first-child { margin-left: 0; }
 .hand-card:hover { 
   transform: translateY(-12px); 
-  z-index: 2; 
+  box-shadow: 0 8px 20px rgba(0,0,0,0.35), 0 2px 4px rgba(0,0,0,0.2), inset 0 0 0 1px rgba(0,0,0,0.04);
+}
+.hand-card.hover-group {
+  transform: translateY(-12px);
   box-shadow: 0 8px 20px rgba(0,0,0,0.35), 0 2px 4px rgba(0,0,0,0.2), inset 0 0 0 1px rgba(0,0,0,0.04);
 }
 .hand-card.selected {
   transform: translateY(-22px);
   border-color: var(--gold);
   box-shadow: 0 8px 25px rgba(212,175,55,0.3), 0 4px 10px rgba(0,0,0,0.3), inset 0 0 0 1px rgba(212,175,55,0.2);
-  z-index: 3;
 }
 /* Card corner index */
 .hand-card .card-corner {
@@ -1187,7 +1189,11 @@ function renderHand() {
         `;
       }
 
-      el.onclick = () => toggleCard(card.id);
+      el.dataset.rank = card.rank;
+      el.dataset.cardId = card.id;
+      el.onmouseenter = () => highlightRankGroup(card.rank, container);
+      el.onmouseleave = () => clearRankGroupHighlight(container);
+      el.onclick = () => toggleRankGroup(card.rank);
       container.appendChild(el);
     }
 
@@ -1205,6 +1211,32 @@ function toggleCard(id) {
   renderHand();
   updateRulePanel();
   autoExpandRulePanel();
+}
+
+// Toggle all cards of the same rank across both rows
+function toggleRankGroup(rank) {
+  const hand = gameState.hand || [];
+  const sameRank = hand.filter(c => c.rank === rank);
+  const allSelected = sameRank.every(c => selectedCards.has(c.id));
+  for (const c of sameRank) {
+    if (allSelected) selectedCards.delete(c.id);
+    else selectedCards.add(c.id);
+  }
+  renderHand();
+  updateRulePanel();
+  autoExpandRulePanel();
+}
+
+// Hover highlight: lift all same-rank cards in both rows
+function highlightRankGroup(rank, _container) {
+  document.querySelectorAll('#handRow1 .hand-card, #handRow2 .hand-card').forEach(el => {
+    if (el.dataset.rank === rank) el.classList.add('hover-group');
+  });
+}
+function clearRankGroupHighlight(_container) {
+  document.querySelectorAll('.hand-card.hover-group').forEach(el => {
+    el.classList.remove('hover-group');
+  });
 }
 
 function renderCenter() {
