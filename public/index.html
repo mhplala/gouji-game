@@ -379,21 +379,29 @@ body {
   font-family: Georgia, 'Noto Serif SC', 'Times New Roman', serif;
 }
 .hand-card:first-child { margin-left: 0; }
+/* z-index strategy: base z set per-card via inline style (i+1).
+   hover/hover-group = 200, selected = 100. This ensures hovered cards
+   always pop above neighbors regardless of DOM order. */
 .hand-card:hover {
   transform: translateY(-12px);
-  z-index: 40;
+  z-index: 200 !important;
   box-shadow: 0 8px 20px rgba(0,0,0,0.35), 0 2px 4px rgba(0,0,0,0.2);
 }
 .hand-card.hover-group {
   transform: translateY(-12px);
-  z-index: 40;
+  z-index: 200 !important;
   box-shadow: 0 8px 20px rgba(0,0,0,0.35), 0 2px 4px rgba(0,0,0,0.2);
 }
 .hand-card.selected {
   transform: translateY(-22px);
-  z-index: 50;
+  z-index: 100 !important;
   border: 2px solid var(--gold);
-  box-shadow: 0 8px 25px rgba(212,175,55,0.3), 0 4px 10px rgba(0,0,0,0.3), inset 0 0 0 1px rgba(212,175,55,0.2);
+  box-shadow: 0 8px 25px rgba(212,175,55,0.3), 0 4px 10px rgba(0,0,0,0.3);
+}
+.hand-card.selected:hover,
+.hand-card.selected.hover-group {
+  z-index: 200 !important;
+  transform: translateY(-22px);
 }
 /* Card corner index */
 .hand-card .card-corner {
@@ -1150,10 +1158,13 @@ function renderHand() {
   }
 
   function isGoujiCard(rank, count) {
-    if (['3','4','5','6','7','8','9','10'].includes(rank)) return count >= 5;
-    if (['J','Q','K','A'].includes(rank)) return count >= 4;
-    if (rank === '2') return count >= 3;
-    if (rank === '小王' || rank === '大王') return count >= 2;
+    // Standard gouji thresholds (matching server)
+    if (['3','4','5','6','7','8','9'].includes(rank)) return false; // 3-9 are never gouji
+    if (rank === '10') return count >= 5;
+    if (rank === 'J') return count >= 4;
+    if (rank === 'Q') return count >= 3;
+    if (rank === 'K' || rank === 'A') return count >= 2;
+    if (rank === '2' || rank === '小王' || rank === '大王') return count >= 1; // always gouji
     return false;
   }
 
@@ -1217,6 +1228,9 @@ function renderHand() {
       el.dataset.rank = card.rank;
       el.dataset.cardId = card.id;
       el.dataset.clusterIdx = clusterIdx;
+      // Base z-index: increases with position so right cards stack over left.
+      // hover/selected use !important to override (200/100).
+      el.style.zIndex = i + 1;
       el.onmouseenter = () => highlightFromCard(card.rank, clusterIdx);
       el.onmouseleave = () => clearRankGroupHighlight();
       el.onclick = () => toggleFromCard(card.rank, clusterIdx);
@@ -1296,31 +1310,27 @@ function renderCenter() {
     const rpDiv = document.createElement('div');
     rpDiv.style.cssText = 'display:flex;flex-direction:column;align-items:center;margin:0 6px;';
     
-    // Add team-colored glow based on player's team
+    // Team glow config — applied per-card, not on wrapper
     const player = gameState.players[rp.seat];
     const team = player?.team;
     const isLatest = ri === roundPlays.length - 1;
-    const glowOpacity = isLatest ? 0.7 : 0.4;
-    
+    const glowOpacity = isLatest ? 0.6 : 0.3;
+    let teamGlowStyle = '';
     if (team === 'A') {
-      // Team A (blue)
-      rpDiv.style.boxShadow = `0 0 8px rgba(91,163,245,${glowOpacity})`;
-      rpDiv.style.border = `1px solid rgba(91,163,245,0.3)`;
-      rpDiv.style.borderRadius = '8px';
-      rpDiv.style.padding = '6px';
+      teamGlowStyle = `box-shadow: 0 0 10px rgba(91,163,245,${glowOpacity}), 0 2px 8px rgba(0,0,0,0.35); border: 1.5px solid rgba(91,163,245,${glowOpacity});`;
     } else if (team === 'B') {
-      // Team B (red)
-      rpDiv.style.boxShadow = `0 0 8px rgba(245,107,107,${glowOpacity})`;
-      rpDiv.style.border = `1px solid rgba(245,107,107,0.3)`;
-      rpDiv.style.borderRadius = '8px';
-      rpDiv.style.padding = '6px';
+      teamGlowStyle = `box-shadow: 0 0 10px rgba(245,107,107,${glowOpacity}), 0 2px 8px rgba(0,0,0,0.35); border: 1.5px solid rgba(245,107,107,${glowOpacity});`;
     }
     
     // Dim older plays, highlight the latest
     if (ri < roundPlays.length - 1) rpDiv.style.opacity = '0.5';
 
     const nameSpan = document.createElement('div');
-    nameSpan.style.cssText = 'font-size:10px;color:#9a8b70;margin-bottom:3px;';
+    nameSpan.style.cssText = 'font-size:10px;margin-bottom:3px;';
+    // Color the name by team
+    if (team === 'A') nameSpan.style.color = 'rgba(91,163,245,0.8)';
+    else if (team === 'B') nameSpan.style.color = 'rgba(245,107,107,0.8)';
+    else nameSpan.style.color = '#9a8b70';
     nameSpan.textContent = gameState.players[rp.seat]?.name || '?';
     rpDiv.appendChild(nameSpan);
 
@@ -1329,6 +1339,8 @@ function renderCenter() {
     for (const card of rp.cards) {
       const el = document.createElement('div');
       el.className = 'center-card';
+      // Apply team glow directly on card
+      if (teamGlowStyle) el.style.cssText += teamGlowStyle;
       const isRed = card.suit === '♥' || card.suit === '♦';
       const isJoker = card.rank === '小王' || card.rank === '大王';
       if (isJoker) {
