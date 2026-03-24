@@ -337,6 +337,15 @@ function botPlay(room, seat) {
     const hand = room.hands[seat];
     if (!hand || hand.length === 0) return;
 
+    // Check if bot is pass-locked (safety check, advanceTurn should skip too)
+    if (room.rules.passLock && room.passedThisRound && room.passedThisRound.has(seat)) {
+      const isNewRound = !room.lastPlay || room.lastPlaySeat === seat;
+      if (!isNewRound) {
+        handlePass(room, seat);
+        return;
+      }
+    }
+
     // Check if bot should pass due to 够级 rules
     if (room.isGoujiActive && room.goujiSeat >= 0) {
       const opposite = getOpposite(room.goujiSeat);
@@ -487,6 +496,7 @@ function startGame(room) {
   room.lastPlaySeat = -1;
   room.isGoujiActive = false;
   room.goujiSeat = -1;
+  room.consecutivePasses = 0;
   room.messages = [];
 
   const deck = shuffle(createDeck());
@@ -697,12 +707,32 @@ function handlePass(room, seat) {
 
 function advanceTurn(room, currentSeat) {
   let next = currentSeat;
+  const isNewRound = !room.lastPlay;
+
   for (let i = 0; i < 6; i++) {
-    next = (next + 1) % 6; // counterclockwise in terms of seat order
-    if (!room.outOrder.includes(next) && room.players[next]) {
-      room.currentTurn = next;
-      return;
+    next = (next + 1) % 6;
+    if (room.outOrder.includes(next) || !room.players[next]) continue;
+
+    // Auto-skip pass-locked players (they already passed this round)
+    if (!isNewRound && room.rules.passLock && room.passedThisRound.has(next)) {
+      room.consecutivePasses++;
+      // Check if all remaining active players have passed → new round
+      const activeCount = room.players.filter((p, idx) => p && !room.outOrder.includes(idx)).length;
+      if (room.consecutivePasses >= activeCount - 1) {
+        room.lastPlay = null;
+        room.lastPlaySeat = -1;
+        room.consecutivePasses = 0;
+        room.isGoujiActive = false;
+        room.goujiSeat = -1;
+        room.passedThisRound = new Set();
+        addMessage(room, '--- 新一轮 ---');
+        // All unlocked now, continue to find next player
+      }
+      continue;
     }
+
+    room.currentTurn = next;
+    return;
   }
 }
 
