@@ -287,9 +287,11 @@ body {
 #lastPlayCards {
   display: flex;
   justify-content: center;
-  gap: 3px;
-  flex-wrap: wrap;
+  gap: 4px;
+  flex-wrap: nowrap;
   min-height: 60px;
+  overflow-x: auto;
+  max-width: 80vw;
 }
 .center-card {
   width: 48px;
@@ -1243,32 +1245,54 @@ function renderCenter() {
   const infoEl = document.getElementById('lastPlayInfo');
   const cardsEl = document.getElementById('lastPlayCards');
 
-  if (!gameState.lastPlay || gameState.state !== 'playing') {
+  const roundPlays = gameState.roundPlays || [];
+
+  if (roundPlays.length === 0 && (!gameState.lastPlay || gameState.state !== 'playing')) {
     infoEl.textContent = gameState.state === 'playing' ? '新一轮，自由出牌' : '';
     cardsEl.innerHTML = '';
     return;
   }
 
+  // Show latest play info
   const lp = gameState.lastPlay;
-  const playerName = gameState.players[lp.seat]?.name || '?';
-  const typeName = PLAY_TYPE_NAMES[lp.playType?.type] || '';
-  infoEl.textContent = `${playerName} 打出 ${typeName}`;
+  if (lp) {
+    const playerName = gameState.players[lp.seat]?.name || '?';
+    const typeName = PLAY_TYPE_NAMES[lp.playType?.type] || '';
+    infoEl.textContent = `${playerName} 打出 ${typeName}`;
+  }
 
+  // Show all plays in this round
   cardsEl.innerHTML = '';
-  for (const card of lp.cards) {
-    const el = document.createElement('div');
-    el.className = 'center-card';
-    const isRed = card.suit === '♥' || card.suit === '♦';
-    const isJoker = card.rank === '小王' || card.rank === '大王';
+  for (let ri = 0; ri < roundPlays.length; ri++) {
+    const rp = roundPlays[ri];
+    const rpDiv = document.createElement('div');
+    rpDiv.style.cssText = 'display:flex;flex-direction:column;align-items:center;margin:0 6px;';
+    // Dim older plays, highlight the latest
+    if (ri < roundPlays.length - 1) rpDiv.style.opacity = '0.5';
 
-    if (isJoker) {
-      el.classList.add(card.rank === '小王' ? 'joker-red' : 'joker-black');
-      el.innerHTML = `<div style="font-size:11px">${card.rank}</div>`;
-    } else {
-      el.classList.add(isRed ? 'red' : 'black');
-      el.innerHTML = `<div class="c-rank">${card.rank}</div><div class="c-suit">${card.suit}</div>`;
+    const nameSpan = document.createElement('div');
+    nameSpan.style.cssText = 'font-size:10px;color:#9a8b70;margin-bottom:3px;';
+    nameSpan.textContent = gameState.players[rp.seat]?.name || '?';
+    rpDiv.appendChild(nameSpan);
+
+    const cardsRow = document.createElement('div');
+    cardsRow.style.cssText = 'display:flex;gap:2px;';
+    for (const card of rp.cards) {
+      const el = document.createElement('div');
+      el.className = 'center-card';
+      const isRed = card.suit === '♥' || card.suit === '♦';
+      const isJoker = card.rank === '小王' || card.rank === '大王';
+      if (isJoker) {
+        el.classList.add(card.rank === '小王' ? 'joker-red' : 'joker-black');
+        el.innerHTML = `<div style="font-size:11px">${card.rank}</div>`;
+      } else {
+        el.classList.add(isRed ? 'red' : 'black');
+        el.innerHTML = `<div class="c-rank">${card.rank}</div><div class="c-suit">${card.suit}</div>`;
+      }
+      cardsRow.appendChild(el);
     }
-    cardsEl.appendChild(el);
+    rpDiv.appendChild(cardsRow);
+    cardsEl.appendChild(rpDiv);
   }
 }
 

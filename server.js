@@ -223,6 +223,7 @@ function createRoom(roomId) {
     roundStarter: 0,
     messages: [],
     rules: { ...DEFAULT_RULES },
+    roundPlays: [], // all plays in current round [{cards, seat, playType, action}]
     passedThisRound: new Set(), // seats that passed this round (for passLock)
     lastGameOutOrder: [],       // previous game's outOrder (for daluo first play)
     revolutionSeats: [],        // seats that declared revolution
@@ -270,6 +271,7 @@ function sendGameState(room, seat) {
     currentTurn: room.currentTurn,
     lastPlay: room.lastPlay,
     lastPlaySeat: room.lastPlaySeat,
+    roundPlays: (room.roundPlays || []).filter(rp => rp.action === 'play'),
     isGoujiActive: room.isGoujiActive,
     goujiSeat: room.goujiSeat,
     outOrder: room.outOrder,
@@ -306,6 +308,7 @@ function sendSpectatorState(room, spec) {
     currentTurn: room.currentTurn,
     lastPlay: room.lastPlay,
     lastPlaySeat: room.lastPlaySeat,
+    roundPlays: (room.roundPlays || []).filter(rp => rp.action === 'play'),
     isGoujiActive: room.isGoujiActive,
     goujiSeat: room.goujiSeat,
     outOrder: room.outOrder,
@@ -595,10 +598,13 @@ function handlePlay(room, seat, cardIds) {
   room.lastPlaySeat = seat;
   room.consecutivePasses = 0;
 
-  // If this was a new round start, clear pass locks
+  // If this was a new round start, clear round plays and pass locks
   if (isNewRound) {
+    room.roundPlays = [];
     room.passedThisRound = new Set();
   }
+  // Add this play to the round history
+  room.roundPlays.push({ cards: playedCards, seat, playType, action: 'play' });
 
   if (isGouji) {
     room.isGoujiActive = true;
@@ -656,6 +662,7 @@ function handlePass(room, seat) {
   if (room.currentTurn !== seat) return;
 
   addMessage(room, `${room.players[seat].name}: 过`);
+  room.roundPlays.push({ cards: [], seat, action: 'pass' });
   room.consecutivePasses++;
   if (room.rules.passLock) {
     room.passedThisRound.add(seat);
@@ -675,6 +682,7 @@ function handlePass(room, seat) {
     room.isGoujiActive = false;
     room.goujiSeat = -1;
     room.passedThisRound = new Set(); // clear pass lock
+    room.roundPlays = []; // clear round plays for new round
     // The last player who played starts new round
     addMessage(room, '--- 新一轮 ---');
   }
