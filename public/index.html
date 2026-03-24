@@ -316,20 +316,33 @@ body {
 /* ===== HAND AREA ===== */
 #handArea {
   position: absolute;
-  bottom: 46px;
+  bottom: 42px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 20;
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
   padding: 0 20px;
 }
-#handCards {
+.row-label {
+  font-size: 9px;
+  color: rgba(255,255,255,0.35);
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  margin-right: 3px;
+  letter-spacing: 1px;
+  flex-shrink: 0;
+  user-select: none;
+}
+#handRow1, #handRow2 {
   display: flex;
   position: relative;
   height: var(--card-h);
   justify-content: center;
 }
+#handRow1 { margin-bottom: 2px; }
+#handRow2 { }
 .hand-card {
   width: var(--card-w);
   height: var(--card-h);
@@ -428,6 +441,19 @@ body {
 }
 .hand-card .card-pips .pip.mid {
   grid-column: 1 / 3;
+}
+/* Gouji highlight */
+.hand-card.gouji-highlight {
+  box-shadow: 0 0 8px rgba(255,60,60,0.4), 0 2px 6px rgba(0,0,0,0.25), inset 0 0 0 1px rgba(0,0,0,0.04);
+  border-color: rgba(255,80,80,0.4);
+}
+.hand-card.gouji-highlight::before {
+  content: '🔥';
+  position: absolute;
+  top: -8px;
+  right: -4px;
+  font-size: 10px;
+  z-index: 5;
 }
 /* Inner border */
 .hand-card::after {
@@ -694,17 +720,20 @@ body {
 
   #handArea {
     position: fixed;
-    bottom: 50px; left: 0; right: 0;
+    bottom: 48px; left: 0; right: 0;
     transform: none;
-    padding: 0 8px;
+    padding: 0 4px;
     z-index: 30;
     overflow-x: auto;
     overflow-y: visible;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
+    flex-direction: column;
+    align-items: stretch;
   }
   #handArea::-webkit-scrollbar { display: none; }
-  #handCards { display: flex; justify-content: flex-start; padding: 4px 0 0; min-width: min-content; }
+  #handRow1, #handRow2 { justify-content: flex-start; min-width: min-content; height: var(--card-h); }
+  #handRow1 { margin-bottom: 2px; }
 
   .hand-card {
     border-radius: 4px;
@@ -915,7 +944,14 @@ body {
 
   <!-- Hand -->
   <div id="handArea">
-    <div id="handCards"></div>
+    <div style="display:flex;align-items:center;">
+      <span class="row-label" id="rowLabel1">10+</span>
+      <div id="handRow1"></div>
+    </div>
+    <div style="display:flex;align-items:center;">
+      <span class="row-label" id="rowLabel2">3-9</span>
+      <div id="handRow2"></div>
+    </div>
   </div>
 
   <!-- Controls -->
@@ -1082,9 +1118,11 @@ function renderPlayers() {
 function getOpposite(seat) { return (seat + 3) % 6; }
 
 function renderHand() {
-  const container = document.getElementById('handCards');
+  const row1El = document.getElementById('handRow1');
+  const row2El = document.getElementById('handRow2');
   if (!gameState.hand || gameState.state !== 'playing') {
-    container.innerHTML = '';
+    row1El.innerHTML = '';
+    row2El.innerHTML = '';
     return;
   }
 
@@ -1094,68 +1132,90 @@ function renderHand() {
     if (!handIds.has(id)) selectedCards.delete(id);
   }
 
-  container.innerHTML = '';
   const hand = gameState.hand;
-  const cardCount = hand.length;
-  
-  // Dynamic overlap: show rank+suit pip (left ~22px visible), comfortable centered deck
-  const cardW = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--card-w')) || 68;
-  const isMobileView = window.innerWidth <= 480;
-  // Visible portion per card: enough to see rank + suit (~22-26px)
-  const minVisible = isMobileView ? 20 : 24;
-  // Max deck width: 65% of screen on desktop, 92% on mobile
-  const maxDeckWidth = isMobileView ? window.innerWidth * 0.92 : Math.min(window.innerWidth * 0.65, 750);
-  let overlap;
-  if (cardCount <= 1) {
-    overlap = 0;
-  } else {
-    // overlap = cardW - visible portion per card
-    const overlapFromMax = cardW - (maxDeckWidth - cardW) / (cardCount - 1);
-    overlap = Math.max(overlapFromMax, cardW - minVisible * 1.5); // don't show too much either  
-    overlap = Math.min(overlap, cardW - minVisible); // guarantee minVisible px visible
-    overlap = Math.max(overlap, 0);
+
+  // Split into two rows: low (3-9) and high (10, J, Q, K, A, 2, Jokers)
+  const LOW_RANKS = new Set(['3','4','5','6','7','8','9']);
+  const row1Cards = hand.filter(c => !LOW_RANKS.has(c.rank)); // 10+ row (top)
+  const row2Cards = hand.filter(c => LOW_RANKS.has(c.rank));  // 3-9 row (bottom)
+
+  // Count same-rank cards for gouji highlight
+  const rankCounts = {};
+  for (const c of hand) {
+    rankCounts[c.rank] = (rankCounts[c.rank] || 0) + 1;
   }
 
-  for (let i = 0; i < hand.length; i++) {
-    const card = hand[i];
-    const el = document.createElement('div');
-    el.className = 'hand-card';
-    if (selectedCards.has(card.id)) el.classList.add('selected');
-    
-    // Apply dynamic overlap via margin
-    if (i > 0) {
-      el.style.marginLeft = `-${Math.round(overlap)}px`;
+  function isGoujiCard(rank, count) {
+    if (['3','4','5','6','7','8','9','10'].includes(rank)) return count >= 5;
+    if (['J','Q','K','A'].includes(rank)) return count >= 4;
+    if (rank === '2') return count >= 3;
+    if (rank === '小王' || rank === '大王') return count >= 2;
+    return false;
+  }
+
+  function renderRowCards(container, cards) {
+    container.innerHTML = '';
+    const cardCount = cards.length;
+    const cardW = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--card-w')) || 68;
+    const isMobileView = window.innerWidth <= 480;
+    const minVisible = isMobileView ? 20 : 24;
+    const maxDeckWidth = isMobileView ? window.innerWidth * 0.92 : Math.min(window.innerWidth * 0.65, 750);
+    let overlap = 0;
+    if (cardCount > 1) {
+      const overlapFromMax = cardW - (maxDeckWidth - cardW) / (cardCount - 1);
+      overlap = Math.max(overlapFromMax, cardW - minVisible * 1.5);
+      overlap = Math.min(overlap, cardW - minVisible);
+      overlap = Math.max(overlap, 0);
     }
 
-    const isRed = card.suit === '♥' || card.suit === '♦';
-    const isJoker = card.rank === '小王' || card.rank === '大王';
+    for (let i = 0; i < cards.length; i++) {
+      const card = cards[i];
+      const el = document.createElement('div');
+      el.className = 'hand-card';
+      if (selectedCards.has(card.id)) el.classList.add('selected');
 
-    if (isJoker) {
-      el.classList.add(card.rank === '小王' ? 'joker-red' : 'joker-black');
-      el.innerHTML = `<div class="joker-text">${card.rank}</div>`;
-    } else {
-      el.classList.add(isRed ? 'red' : 'black');
-      // Build center area
-      const pipsHTML = buildPipsHTML(card.rank, card.suit);
-      let centerHTML;
-      if (pipsHTML) {
-        centerHTML = `<div class="card-pips">${pipsHTML}</div>`;
-      } else {
-        // Face card: show large letter
-        centerHTML = `<div class="card-pips face-pip">${card.rank}</div>`;
+      // Gouji highlight: if this rank has enough cards to form gouji
+      if (isGoujiCard(card.rank, rankCounts[card.rank])) {
+        el.classList.add('gouji-highlight');
       }
-      // Fix 6/9 ambiguity: underline the 6 in bottom-right corner
-      const brRank = card.rank === '6' ? '6̲' : card.rank;
-      el.innerHTML = `
-        <div class="card-corner"><span class="cr">${card.rank}</span><span class="cs">${card.suit}</span></div>
-        ${centerHTML}
-        <div class="card-corner-br"><span class="cr">${brRank}</span><span class="cs">${card.suit}</span></div>
-      `;
+
+      if (i > 0) {
+        el.style.marginLeft = `-${Math.round(overlap)}px`;
+      }
+
+      const isRed = card.suit === '♥' || card.suit === '♦';
+      const isJoker = card.rank === '小王' || card.rank === '大王';
+
+      if (isJoker) {
+        el.classList.add(card.rank === '小王' ? 'joker-red' : 'joker-black');
+        el.innerHTML = `<div class="joker-text">${card.rank}</div>`;
+      } else {
+        el.classList.add(isRed ? 'red' : 'black');
+        const pipsHTML = buildPipsHTML(card.rank, card.suit);
+        let centerHTML;
+        if (pipsHTML) {
+          centerHTML = `<div class="card-pips">${pipsHTML}</div>`;
+        } else {
+          centerHTML = `<div class="card-pips face-pip">${card.rank}</div>`;
+        }
+        const brRank = card.rank === '6' ? '6̲' : card.rank;
+        el.innerHTML = `
+          <div class="card-corner"><span class="cr">${card.rank}</span><span class="cs">${card.suit}</span></div>
+          ${centerHTML}
+          <div class="card-corner-br"><span class="cr">${brRank}</span><span class="cs">${card.suit}</span></div>
+        `;
+      }
+
+      el.onclick = () => toggleCard(card.id);
+      container.appendChild(el);
     }
 
-    el.onclick = () => toggleCard(card.id);
-    container.appendChild(el);
+    // Hide row if empty
+    container.style.display = cards.length > 0 ? 'flex' : 'none';
   }
+
+  renderRowCards(row1El, row1Cards);
+  renderRowCards(row2El, row2Cards);
 }
 
 function toggleCard(id) {
@@ -1711,7 +1771,7 @@ function autoExpandRulePanel() {
 function scrollHandCenter() {
   if (!isMobile()) return;
   const area = document.getElementById('handArea');
-  if (area.scrollWidth > area.clientWidth) {
+  if (area && area.scrollWidth > area.clientWidth) {
     area.scrollLeft = (area.scrollWidth - area.clientWidth) / 2;
   }
 }
