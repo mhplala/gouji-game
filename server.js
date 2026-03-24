@@ -685,6 +685,31 @@ function handlePass(room, seat) {
     room.passedThisRound.add(seat);
   }
 
+  // 够级中对头过牌 = 够级成功，直接新一轮，发起者获得出牌权
+  if (room.isGoujiActive && room.goujiSeat >= 0) {
+    const opposite = getOpposite(room.goujiSeat);
+    if (seat === opposite) {
+      // 对头压不住，够级成功！
+      addMessage(room, `✅ 够级成功！${room.players[room.goujiSeat].name} 开点`);
+      const goujiStarter = room.goujiSeat;
+      room.lastPlay = null;
+      room.lastPlaySeat = -1;
+      room.consecutivePasses = 0;
+      room.isGoujiActive = false;
+      room.goujiSeat = -1;
+      room.passedThisRound = new Set();
+      room.roundPlays = [];
+      addMessage(room, '--- 新一轮 ---');
+      // 够级发起者获得出牌权
+      room.currentTurn = goujiStarter;
+      broadcastRoom(room);
+      if (room.players[room.currentTurn] && room.players[room.currentTurn].isBot) {
+        botPlay(room, room.currentTurn);
+      }
+      return;
+    }
+  }
+
   // Count active (non-out) players
   const activePlayers = [];
   for (let i = 0; i < 6; i++) {
@@ -713,9 +738,37 @@ function handlePass(room, seat) {
 }
 
 function advanceTurn(room, currentSeat) {
-  let next = currentSeat;
   const isNewRound = !room.lastPlay;
 
+  // 够级核心规则: 够级激活时，出牌权在够级发起者和对头之间来回跳
+  if (room.isGoujiActive && room.goujiSeat >= 0) {
+    const goujiPlayer = room.goujiSeat;
+    const opposite = getOpposite(goujiPlayer);
+    
+    if (currentSeat === goujiPlayer) {
+      // 够级发起者刚出牌 → 轮到对头
+      if (!room.outOrder.includes(opposite) && room.players[opposite]) {
+        room.currentTurn = opposite;
+        return;
+      }
+      // 对头已出完，够级结束
+      room.isGoujiActive = false;
+      room.goujiSeat = -1;
+    } else if (currentSeat === opposite) {
+      // 对头刚出牌 → 轮回够级发起者
+      if (!room.outOrder.includes(goujiPlayer) && room.players[goujiPlayer]) {
+        room.currentTurn = goujiPlayer;
+        return;
+      }
+      // 够级发起者已出完，够级结束
+      room.isGoujiActive = false;
+      room.goujiSeat = -1;
+    }
+    // 其他情况（烧牌等），够级结束，恢复正常轮转
+  }
+
+  // 正常顺序轮转
+  let next = currentSeat;
   for (let i = 0; i < 6; i++) {
     next = (next + 1) % 6;
     if (room.outOrder.includes(next) || !room.players[next]) continue;
