@@ -139,14 +139,21 @@ function isGouji(play) {
 }
 
 function getGoujiThreshold(rank) {
-  if (['3','4','5','6','7','8','9','10'].includes(rank)) return 5;
-  if (['J','Q','K','A'].includes(rank)) return 4;
-  if (rank === '2') return 3;
-  if (rank === '小王' || rank === '大王') return 2;
+  // 标准够级牌门槛（维基百科/青岛标准规则）
+  // 3-9 不是够级牌
+  if (['3','4','5','6','7','8','9'].includes(rank)) return Infinity;
+  if (rank === '10') return 5;
+  if (rank === 'J') return 4;
+  if (rank === 'Q') return 3;
+  if (rank === 'K' || rank === 'A') return 2;
+  if (rank === '2') return 1;
+  if (rank === '小王' || rank === '大王') return 1;
   return Infinity;
 }
 
 function isGoujiPlay(cards) {
+  // 挂王的任何牌都是够级牌
+  if (cards.some(c => c.rank === '小王' || c.rank === '大王')) return true;
   const counts = getRankCounts(cards);
   for (const [rank, count] of Object.entries(counts)) {
     const threshold = getGoujiThreshold(rank);
